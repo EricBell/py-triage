@@ -21,9 +21,9 @@ py-triage ("Python Reverse Engineering & Triage Kit") helps you size up an unfam
 ```
 py-triage/
 ├── Dockerfile            # Image: uv + graphviz + git + isolated uv tool installs; entrypoint = triage
-├── docker-compose.yml    # Service "py-reveng": mounts target repo, passes env vars
+├── docker-compose.yml    # Service "py-triage": mounts target repo, passes env vars
 ├── triage.sh             # The 5-step pipeline (installed in image as /usr/local/bin/triage)
-├── UsageGuide.md         # Long usage doc (untracked in git); embeds copies of the three files above
+├── UserGuide.md         # Long usage doc (untracked in git); embeds copies of the three files above
 ├── README.md             # One-liner description
 ├── LICENSE               # PolyForm Noncommercial 1.0.0
 └── .gitignore
@@ -66,22 +66,22 @@ None.
 | `TARGET_PKG` | `src` | Package or path passed to every tool (positional arg of `triage`) |
 | `RUN_MUTMUT` | `false` | Set to `true` to run step 5 |
 
-Typical run: `TARGET_REPO=~/projects/app TARGET_PKG=app docker compose up`. For a shell inside the container: `docker compose run --rm --entrypoint /bin/bash py-reveng`. Image tag is `py-reveng-toolkit:latest` and the container name is `py-reveng-audit`. No ports are exposed.
+Typical run: `TARGET_REPO=~/projects/app TARGET_PKG=app docker compose up`. For a shell inside the container: `docker compose run --rm --entrypoint /bin/bash py-triage`. Image tag is `py-triage-toolkit:latest` and the container name is `py-triage-audit`. No ports are exposed.
 
 ## Key Entry Points
 
 1. `triage.sh`: all pipeline logic.
 2. `Dockerfile`: which tools are installed, and where.
 3. `docker-compose.yml`: the env-var interface.
-4. `UsageGuide.md` §4: how to read each report.
+4. `UserGuide.md` §4: how to read each report.
 
 ## Notes & Gotchas
 
-- **Duplicated source of truth:** `UsageGuide.md` embeds full copies of the Dockerfile, `triage.sh` and compose file. They will drift unless updated together. The guide also calls itself `USAGE_GUIDE.md` and refers to the kit as `py-xray/`, while the repo is `py-triage` and the file is `UsageGuide.md`.
+- **Duplicated source of truth:** `UserGuide.md` embeds full copies of the Dockerfile, `triage.sh` and compose file. They will drift unless updated together. Keep names consistent: the project is `py-triage` and the guide is `UserGuide.md`.
 - **mutmut version:** `--paths-to-mutate` is a mutmut 2.x flag. The Dockerfile installs mutmut unpinned, so a 3.x install would likely break step 5, which `|| true` then hides.
 - **Unused tools:** `xenon` and `diff-cover` are installed but not called by `triage.sh`. They are meant for ad-hoc use in the interactive shell.
 - **Empty `TEST_RUNNER`:** with no `pyproject.toml` or `requirements.txt`, pytest runs without the target's dependencies, so coverage will likely fail or be empty.
 - **Working directory:** `pyproject.toml` and `requirements.txt` are checked relative to `/workspace`, so `TARGET_PKG` should be a subpath of the repo root.
 - **Unguarded steps:** the `radon` commands in step 2 have no `|| true`. They don't abort the run because `-e` isn't set.
 - **Cleanup:** the guide suggests ignoring `audit_reports/` and `.mutmut-cache` in the target repo's `.gitignore`.
-- **Unchecked claim:** `UsageGuide.md` says the target repo is left untouched. Nothing in the scripts enforces this beyond the `/tmp` venv, and `pytest` itself may write `.coverage` or `__pycache__` into `/workspace`.
+- **Unchecked claim:** `UserGuide.md` says the target repo is left untouched. Nothing in the scripts enforces this beyond the `/tmp` venv, and `pytest` itself may write `.coverage` or `__pycache__` into `/workspace`.

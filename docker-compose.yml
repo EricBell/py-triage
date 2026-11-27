@@ -1,10 +1,10 @@
 services:
-  py-reveng:
+  py-triage:
     build:
       context: .
       dockerfile: Dockerfile
-    image: py-reveng-toolkit:latest
-    container_name: py-reveng-audit
+    image: py-triage-toolkit:latest
+    container_name: py-triage-audit
     volumes:
       - ${TARGET_REPO:-.}:/workspace
     environment:

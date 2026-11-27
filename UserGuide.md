@@ -8,15 +8,15 @@ This kit mounts any target Python repository into `/workspace`, runs isolated an
 
 ## 1. Repository Layout & Kit Files
 
-Store these three files in your toolkit repository (e.g., `~/tools/py-xray/`):
+Store these three files in your toolkit repository (e.g., `~/tools/py-triage/`):
 
 ```text
-py-xray/
+py-triage/
 ├── Dockerfile
 ├── docker-compose.yml
 ├── triage.sh
 ├── LICENSE          # e.g., PolyForm Noncommercial 1.0.0
-└── USAGE_GUIDE.md   # This file
+└── UserGuide.md   # This file
 ```
 
 ### `Dockerfile`
@@ -111,12 +111,12 @@ echo "=== Done! Reports saved to ./audit_reports ==="
 ### `docker-compose.yml`
 ```yaml
 services:
-  py-reveng:
+  py-triage:
     build:
       context: .
       dockerfile: Dockerfile
-    image: py-reveng-toolkit:latest
-    container_name: py-reveng-audit
+    image: py-triage-toolkit:latest
+    container_name: py-triage-audit
     volumes:
       - ${TARGET_REPO:-.}:/workspace
     environment:
@@ -129,10 +129,10 @@ services:
 ## 2. Setup & Directory Positioning
 
 ### Step 1: Build the Image Once
-Navigate to your toolkit directory (`py-xray/`) and build the image:
+Navigate to your toolkit directory (`py-triage/`) and build the image:
 
 ```bash
-cd ~/tools/py-xray
+cd ~/tools/py-triage
 docker compose build
 ```
 
@@ -140,12 +140,12 @@ docker compose build
 You have two ways to position your terminal depending on your workflow:
 
 #### Pattern A: Run from the Toolkit Directory (Recommended)
-Keep your `cwd` inside `~/tools/py-xray` and point `TARGET_REPO` at the external codebase you want to inspect.
+Keep your `cwd` inside `~/tools/py-triage` and point `TARGET_REPO` at the external codebase you want to inspect.
 
 ```text
 ~/
 ├── tools/
-│   └── py-xray/              <-- Your CWD is here
+│   └── py-triage/              <-- Your CWD is here
 │       └── docker-compose.yml
 └── projects/
     └── legacy-app/           <-- TARGET_REPO points here
@@ -159,7 +159,7 @@ Keep your `cwd` inside the target repository and pass `-f` to `docker compose`. 
 
 ```bash
 cd ~/projects/legacy-app
-TARGET_PKG=app docker compose -f ~/tools/py-xray/docker-compose.yml up
+TARGET_PKG=app docker compose -f ~/tools/py-triage/docker-compose.yml up
 ```
 
 ---
@@ -186,7 +186,7 @@ TARGET_REPO=~/projects/legacy-app TARGET_PKG=app RUN_MUTMUT=true docker compose 
 Drop into a `bash` shell inside `/workspace` with all `uv` tools on `PATH` so you can run ad-hoc queries, inspect specific mutants, or tweak flags:
 
 ```bash
-TARGET_REPO=~/projects/legacy-app docker compose run --rm --entrypoint /bin/bash py-reveng
+TARGET_REPO=~/projects/legacy-app docker compose run --rm --entrypoint /bin/bash py-triage
 ```
 
 #### Useful Ad-Hoc Commands Inside the Interactive Shell
