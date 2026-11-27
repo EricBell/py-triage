@@ -19,7 +19,7 @@ radon mi "$PKG_PATH" -s -n B >> "$REPORT_DIR/2_complexity_hotspots.txt"
 # 3. Prune: Dead code & anti-patterns
 echo "[3/5] Scanning for dead code (vulture) & smells (ruff)..."
 vulture "$PKG_PATH" --min-confidence 80 > "$REPORT_DIR/3_dead_code.txt" || true
-ruff check "$PKG_PATH" --select C901,B,SIM,RET > "$REPORT_DIR/3b_ruff_smells.txt" || true
+ruff check "$PKG_PATH" --isolated --select C901,B,SIM,RET > "$REPORT_DIR/3b_ruff_smells.txt" || true
 
 # Configure an ephemeral venv inside /tmp so we don't pollute the mounted repo
 export UV_PROJECT_ENVIRONMENT="/tmp/target-venv"

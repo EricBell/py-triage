@@ -79,7 +79,7 @@ radon mi "$PKG_PATH" -s -n B >> "$REPORT_DIR/2_complexity_hotspots.txt"
 # 3. Prune: Dead code & anti-patterns
 echo "[3/5] Scanning for dead code (vulture) & smells (ruff)..."
 vulture "$PKG_PATH" --min-confidence 80 > "$REPORT_DIR/3_dead_code.txt" || true
-ruff check "$PKG_PATH" --select C901,B,SIM,RET > "$REPORT_DIR/3b_ruff_smells.txt" || true
+ruff check "$PKG_PATH" --isolated --select C901,B,SIM,RET > "$REPORT_DIR/3b_ruff_smells.txt" || true
 
 # Configure an ephemeral venv inside /tmp so we don't pollute the mounted repo
 export UV_PROJECT_ENVIRONMENT="/tmp/target-venv"
@@ -168,10 +168,13 @@ TARGET_PKG=app docker compose -f ~/tools/py-triage/docker-compose.yml up
 
 All reports are written to `<TARGET_REPO>/audit_reports/`.
 
+> **Every command in this section assumes Pattern A:** your terminal `cwd` stays in `~/tools/py-triage`, and `TARGET_REPO` points at the codebase being audited. You never `cd` into the target. (For the "run from inside the target" variants, see [Pattern B Permutations](#pattern-b-permutations-cwd-inside-the-target-repo).)
+
 ### Standard Fast Audit (Steps 1–4)
 Runs dependency mapping, complexity scoring, dead-code detection, smell linting, and branch coverage (skips slow mutation testing):
 
 ```bash
+cd ~/tools/py-triage
 TARGET_REPO=~/projects/legacy-app TARGET_PKG=app docker compose up
 ```
 
@@ -179,14 +182,115 @@ TARGET_REPO=~/projects/legacy-app TARGET_PKG=app docker compose up
 Runs the entire pipeline including `mutmut`. Best run **after** fixing obvious coverage gaps:
 
 ```bash
+cd ~/tools/py-triage
 TARGET_REPO=~/projects/legacy-app TARGET_PKG=app RUN_MUTMUT=true docker compose up
 ```
 
 ### Interactive Investigation Shell
-Drop into a `bash` shell inside `/workspace` with all `uv` tools on `PATH` so you can run ad-hoc queries, inspect specific mutants, or tweak flags:
+Drop into a `bash` shell inside `/workspace` with all `uv` tools on `PATH` so you can run ad-hoc queries, inspect specific mutants, or tweak flags. Your host `cwd` stays in `py-triage`; only the shell *inside the container* sits in the target repo:
 
 ```bash
+cd ~/tools/py-triage
 TARGET_REPO=~/projects/legacy-app docker compose run --rm --entrypoint /bin/bash py-triage
+```
+
+### Pattern A Permutations (cwd stays in `py-triage`)
+All of these are run from `~/tools/py-triage`.
+
+* **Target path relative to `py-triage`** (resolved against the compose file's directory):
+  ```bash
+  TARGET_REPO=../../projects/legacy-app TARGET_PKG=app docker compose up
+  ```
+* **Target package nested deeper than the repo root** (`TARGET_PKG` is a subpath of the target repo):
+  ```bash
+  TARGET_REPO=~/projects/legacy-app TARGET_PKG=src/app docker compose up
+  ```
+* **Audit the whole repo instead of one package:**
+  ```bash
+  TARGET_REPO=~/projects/legacy-app TARGET_PKG=. docker compose up
+  ```
+* **Several `TARGET_REPO` values in a row** (one report folder per repo, each in its own `audit_reports/`):
+  ```bash
+  TARGET_REPO=~/projects/legacy-app   TARGET_PKG=app     docker compose up
+  TARGET_REPO=~/projects/billing-svc  TARGET_PKG=billing docker compose up
+  ```
+* **Export once per terminal session, then run short commands:**
+  ```bash
+  export TARGET_REPO=~/projects/legacy-app TARGET_PKG=app
+  docker compose up                       # fast audit
+  RUN_MUTMUT=true docker compose up       # deep audit
+  docker compose run --rm --entrypoint /bin/bash py-triage   # shell
+  ```
+* **Persist the settings in a `.env` file inside `py-triage/`** (Compose reads it automatically from the project directory, so you only type `docker compose up`). Edit it when you switch targets:
+  ```bash
+  cat > ~/tools/py-triage/.env <<'EOF'
+  TARGET_REPO=/home/you/projects/legacy-app
+  TARGET_PKG=app
+  RUN_MUTMUT=false
+  EOF
+
+  cd ~/tools/py-triage
+  docker compose up
+  ```
+  Use absolute paths in `.env`; `~` is not expanded there. Variables set on the command line or exported in your shell override `.env`.
+* **Run one-off ad-hoc tools without opening a shell** (host `cwd` stays put, the command runs in `/workspace`):
+  ```bash
+  TARGET_REPO=~/projects/legacy-app docker compose run --rm --entrypoint radon py-triage cc app -s -o SCORE
+  TARGET_REPO=~/projects/legacy-app docker compose run --rm --entrypoint vulture py-triage app --min-confidence 60
+  TARGET_REPO=~/projects/legacy-app docker compose run --rm --entrypoint xenon py-triage app --max-absolute B --max-modules B --max-average A
+  ```
+* **Read reports from `py-triage` without leaving it:**
+  ```bash
+  cat ~/projects/legacy-app/audit_reports/2_complexity_hotspots.txt
+  xdg-open ~/projects/legacy-app/audit_reports/1_dependencies.svg
+  ```
+
+### Auditing a Single Python File
+`TARGET_PKG` is passed unchanged to every tool, so it can be a single `.py` file instead of a package. The path is **relative to the repo root** (`TARGET_REPO`), not to `py-triage`.
+
+```bash
+cd ~/tools/py-triage
+TARGET_REPO=~/projects/legacy-app TARGET_PKG=app/billing/processor.py docker compose up
+```
+
+Real-world example (note the `=` after every variable name; without it bash reports `command not found`):
+
+```bash
+cd /home/eric/workspaces/original/py-triage
+TARGET_REPO=../../dataannotation/project-7 TARGET_PKG=home-assistant/homeassistant/components/template/light.py docker compose up
+```
+
+How each step behaves with a single file:
+
+| Step | Result |
+|------|--------|
+| 1 `pydeps` | Works. Graphs that module and what it imports. |
+| 2 `radon` | Works. |
+| 3 `vulture` | Works, but only sees that one file. Anything used only from other files is reported as dead code, so expect false positives. |
+| 3b `ruff` | Works. |
+| 4 `pytest --cov` | **Unreliable.** `--cov` expects a package or directory; a file path often yields "module never imported" or empty data. The whole test suite still runs. |
+| 5 `mutmut` | Works. `--paths-to-mutate` accepts a file, but it still runs the whole test suite. |
+
+Tips:
+* **Check the paths first.** If `TARGET_REPO` doesn't exist, Docker mounts an empty directory and every tool reports nothing.
+* **Large framework repos (e.g. Home Assistant):** step 4 will likely produce no coverage. Pytest ignores `TARGET_PKG` when choosing what to run. It collects tests across the whole repo, and that needs every dependency of the repo installed. Without them you get `collected 0 items / N errors`. Steps 1–3 still work fine.
+* **Ruff ignores the target's config** (`--isolated`), so the same four rule sets apply to every repo and a stale rule in the target's `pyproject.toml` can't crash it.
+* **Coverage for one file:** run the full audit on the containing package (e.g. `TARGET_PKG=home-assistant/homeassistant/components/template`), then look up your file in `4_coverage_report.txt`.
+* **Reports are overwritten** on each run. Copy `audit_reports/` elsewhere to compare two files.
+* **Skip the pipeline and run one tool directly** (no coverage quirk):
+  ```bash
+  TARGET_REPO=~/projects/legacy-app docker compose run --rm --entrypoint radon py-triage cc app/billing/processor.py -s
+  TARGET_REPO=~/projects/legacy-app docker compose run --rm --entrypoint ruff py-triage check app/billing/processor.py --select C901,B,SIM,RET
+  ```
+
+### Pattern B Permutations (cwd inside the target repo)
+Only use these if you deliberately work from the target repo. `TARGET_REPO` defaults to `.`, so it can be omitted.
+
+```bash
+cd ~/projects/legacy-app
+TARGET_PKG=app docker compose -f ~/tools/py-triage/docker-compose.yml up                    # fast audit
+TARGET_PKG=app RUN_MUTMUT=true docker compose -f ~/tools/py-triage/docker-compose.yml up    # deep audit
+docker compose -f ~/tools/py-triage/docker-compose.yml run --rm --entrypoint /bin/bash py-triage   # shell
 ```
 
 #### Useful Ad-Hoc Commands Inside the Interactive Shell

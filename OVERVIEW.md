@@ -39,7 +39,7 @@ There is no Python source in this repo. It is purely tooling.
 |------|------|--------|
 | 1 Map | `pydeps --max-bacon=2 -T svg` | `1_dependencies.svg` |
 | 2 Rank | `radon cc -n C` and `radon mi -n B` | `2_complexity_hotspots.txt` |
-| 3 Prune | `vulture --min-confidence 80`, `ruff --select C901,B,SIM,RET` | `3_dead_code.txt`, `3b_ruff_smells.txt` |
+| 3 Prune | `vulture --min-confidence 80`, `ruff --isolated --select C901,B,SIM,RET` | `3_dead_code.txt`, `3b_ruff_smells.txt` |
 | 4 Measure | `pytest --cov --cov-branch` | `4_coverage_report.txt`, `coverage.xml` |
 | 5 Stress | `mutmut run` and `mutmut results` (only if `RUN_MUTMUT=true`) | `5_mutation_results.txt` |
 
