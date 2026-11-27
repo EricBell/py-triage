@@ -1,0 +1,12 @@
+services:
+  py-reveng:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: py-reveng-toolkit:latest
+    container_name: py-reveng-audit
+    volumes:
+      - ${TARGET_REPO:-.}:/workspace
+    environment:
+      - RUN_MUTMUT=${RUN_MUTMUT:-false}
+    command: ["${TARGET_PKG:-src}"]
